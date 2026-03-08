@@ -4,27 +4,29 @@ import url_join/slashes
 pub fn normalize(s: String) -> String {
   case string.starts_with(s, "file:///") {
     True -> s
-    False -> case string.starts_with(s, "file:") {
-      True ->
-        "file:///" <> slashes.trim_leading(string.drop_start(s, up_to: 5))
-      False -> case is_ipv6_host(s) {
-        True -> s
-        False -> {
-          case string.split_once(s, on: "://") {
-            Ok(_) -> s
-            Error(_) -> {
-              case string.split_once(s, on: ":") {
-                Ok(#(protocol, rest)) -> {
-                  let rest_trimmed = slashes.trim_leading(rest)
-                  protocol <> "://" <> rest_trimmed
+    False ->
+      case string.starts_with(s, "file:") {
+        True ->
+          "file:///" <> slashes.trim_leading(string.drop_start(s, up_to: 5))
+        False ->
+          case is_ipv6_host(s) {
+            True -> s
+            False -> {
+              case string.split_once(s, on: "://") {
+                Ok(_) -> s
+                Error(_) -> {
+                  case string.split_once(s, on: ":") {
+                    Ok(#(protocol, rest)) -> {
+                      let rest_trimmed = slashes.trim_leading(rest)
+                      protocol <> "://" <> rest_trimmed
+                    }
+                    Error(_) -> s
+                  }
                 }
-                Error(_) -> s
               }
             }
           }
-        }
       }
-    }
   }
 }
 

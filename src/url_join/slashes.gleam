@@ -18,20 +18,22 @@ pub fn collapse_trailing(s: String) -> String {
 
 fn drop_leading_chars(s: String, char: String) -> String {
   case string.pop_grapheme(s) {
-    Ok(#(g, rest)) -> case g == char {
-      True -> drop_leading_chars(rest, char)
-      False -> s
-    }
+    Ok(#(g, rest)) ->
+      case g == char {
+        True -> drop_leading_chars(rest, char)
+        False -> s
+      }
     Error(_) -> ""
   }
 }
 
 fn drop_trailing_chars(s: String, char: String) -> String {
   case string.pop_grapheme(string.reverse(s)) {
-    Ok(#(g, rev_rest)) -> case g == char {
-      True -> string.reverse(rev_rest) |> drop_trailing_chars(char)
-      False -> s
-    }
+    Ok(#(g, rev_rest)) ->
+      case g == char {
+        True -> string.reverse(rev_rest) |> drop_trailing_chars(char)
+        False -> s
+      }
     Error(_) -> ""
   }
 }

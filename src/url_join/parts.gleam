@@ -5,11 +5,10 @@ import url_join/slashes
 pub fn process(parts: List(String)) -> List(String) {
   list.index_map(parts, fn(part, i) {
     let len = list.length(parts)
-    let no_leading =
-      case i > 0 {
-        True -> slashes.trim_leading(part)
-        False -> part
-      }
+    let no_leading = case i > 0 {
+      True -> slashes.trim_leading(part)
+      False -> part
+    }
     case i < len - 1 {
       True -> slashes.trim_trailing(no_leading)
       False -> slashes.collapse_trailing(no_leading)

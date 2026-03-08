@@ -2,8 +2,7 @@ import gleam/list
 import gleam/string
 
 pub fn normalize(s: String) -> String {
-  let no_slash_before_special =
-    string.replace(in: s, each: "/?", with: "?")
+  let no_slash_before_special = string.replace(in: s, each: "/?", with: "?")
   let no_slash_before_hash =
     string.replace(in: no_slash_before_special, each: "/#", with: "#")
   let no_slash_before_amp =
@@ -14,11 +13,10 @@ pub fn normalize(s: String) -> String {
 fn normalize_params(s: String) -> String {
   case string.split_once(s, on: "#") {
     Ok(#(before_hash, after_hash)) -> {
-      let hash_suffix =
-        case string.is_empty(after_hash) {
-          True -> ""
-          False -> "#" <> after_hash
-        }
+      let hash_suffix = case string.is_empty(after_hash) {
+        True -> ""
+        False -> "#" <> after_hash
+      }
       let parts = split_query_parts(before_hash)
       case parts {
         [] -> s
