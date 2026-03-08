@@ -1,0 +1,12 @@
+name = "url_join"
+version = "1.0.0"
+
+description = "Join URL path segments and normalize the result, similar to npm's url-join."
+licences = ["Apache-2.0"]
+repository = { type = "github", user = "husseymarcos", repo = "url_join" }
+
+[dependencies]
+gleam_stdlib = ">= 0.44.0 and < 2.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"
