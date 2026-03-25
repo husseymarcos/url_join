@@ -1,7 +1,7 @@
 name = "url_join"
 version = "1.0.1"
 
-description = "Join URL path segments and normalize the result, similar to npm's url-join."
+description = "Join URL path segments and normalize the result."
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "husseymarcos", repo = "url_join" }
 
