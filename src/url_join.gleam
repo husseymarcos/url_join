@@ -52,19 +52,20 @@ import gleam/string
 /// - Normalises query string (multiple `?`/`&` become a single `?` then `&`)
 ///
 pub fn join(parts: List(String)) -> String {
-  let filtered = list.filter(parts, fn(part) { !string.is_empty(part) })
-  normalize(filtered)
+  parts
+  |> list.filter(fn(part) { !string.is_empty(part) })
+  |> normalize
 }
 
 fn normalize(segments: List(String)) -> String {
   case segments {
     [] -> ""
-    [first, ..rest] -> {
-      let merged = merge_leading_parts(first, rest)
-      let processed = process_parts(merged)
-      let joined = join_parts(processed)
-      normalize_query(joined)
-    }
+    [first, ..rest] ->
+      first
+      |> merge_leading_parts(rest)
+      |> process_parts
+      |> join_parts
+      |> normalize_query
   }
 }
 
@@ -79,7 +80,7 @@ fn merge_leading_parts(first: String, rest: List(String)) -> List(String) {
       case is_plain_protocol(first), first == "/" {
         True, _ -> merge_leading_parts(first <> next, tail)
         _, True -> merge_leading_parts("/" <> next, tail)
-        _, _ -> [normalize_protocol(first), ..list.map(rest, fn(p) { p })]
+        _, _ -> [normalize_protocol(first), ..rest]
       }
     }
   }
@@ -87,17 +88,16 @@ fn merge_leading_parts(first: String, rest: List(String)) -> List(String) {
 
 fn is_plain_protocol(s: String) -> Bool {
   case string.split_once(s, on: ":") {
-    Ok(#(before, after)) -> {
-      !string.contains(does: before, contain: "/")
-      && !string.contains(does: before, contain: ":")
+    Ok(#(before, after)) ->
+      !string.contains(before, "/")
+      && !string.contains(before, ":")
       && only_slashes_or_empty(after)
-    }
     Error(_) -> False
   }
 }
 
 fn only_slashes_or_empty(s: String) -> Bool {
-  string.replace(in: s, each: "/", with: "") |> string.is_empty
+  s |> string.replace("/", "") |> string.is_empty
 }
 
 // ============================================================================
@@ -105,77 +105,46 @@ fn only_slashes_or_empty(s: String) -> Bool {
 // ============================================================================
 
 fn normalize_protocol(s: String) -> String {
-  case string.starts_with(s, "file:///") {
-    True -> s
-    False ->
-      case string.starts_with(s, "file:") {
-        True ->
-          "file:///" <> trim_leading_slashes(string.drop_start(s, up_to: 5))
-        False ->
-          case is_ipv6_host(s) {
-            True -> s
-            False -> {
-              case string.split_once(s, on: "://") {
-                Ok(_) -> s
-                Error(_) -> {
-                  case string.split_once(s, on: ":") {
-                    Ok(#(protocol, rest)) -> {
-                      let rest_trimmed = trim_leading_slashes(rest)
-                      protocol <> "://" <> rest_trimmed
-                    }
-                    Error(_) -> s
-                  }
-                }
-              }
-            }
-          }
-      }
-  }
-}
+  let is_file_triple = string.starts_with(s, "file:///")
+  let is_file = string.starts_with(s, "file:")
+  let is_ipv6 = string.starts_with(s, "[") && string.contains(s, "]")
 
-fn is_ipv6_host(s: String) -> Bool {
-  string.starts_with(s, "[") && string.contains(does: s, contain: "]")
+  // By matching on a tuple of conditions, we flatten the deep nesting entirely.
+  case is_file_triple, is_file, is_ipv6, string.split_once(s, "://"), string.split_once(s, ":") {
+    True, _, _, _, _ -> s
+    _, True, _, _, _ -> "file:///" <> drop_leading_slashes(string.drop_start(s, 5))
+    _, _, True, _, _ -> s
+    _, _, _, Ok(_), _ -> s
+    _, _, _, Error(_), Ok(#(protocol, rest)) -> protocol <> "://" <> drop_leading_slashes(rest)
+    _, _, _, _, _ -> s
+  }
 }
 
 // ============================================================================
 // Slash Handling
 // ============================================================================
 
-fn trim_leading_slashes(s: String) -> String {
-  drop_leading_chars(s, "/")
+// Replaced complex string reversing and grapheme popping with simple recursion
+// using `string.drop_start` and `string.drop_end`.
+fn drop_leading_slashes(s: String) -> String {
+  case string.starts_with(s, "/") {
+    True -> drop_leading_slashes(string.drop_start(s, 1))
+    False -> s
+  }
 }
 
-fn trim_trailing_slashes(s: String) -> String {
-  drop_trailing_chars(s, "/")
+fn drop_trailing_slashes(s: String) -> String {
+  case string.ends_with(s, "/") {
+    True -> drop_trailing_slashes(string.drop_end(s, 1))
+    False -> s
+  }
 }
 
 fn collapse_trailing_slashes(s: String) -> String {
-  let trimmed = drop_trailing_chars(s, "/")
+  let trimmed = drop_trailing_slashes(s)
   case string.ends_with(s, "/"), string.is_empty(trimmed) {
     True, False -> trimmed <> "/"
     _, _ -> trimmed
-  }
-}
-
-fn drop_leading_chars(s: String, char: String) -> String {
-  case string.pop_grapheme(s) {
-    Ok(#(g, rest)) ->
-      case g == char {
-        True -> drop_leading_chars(rest, char)
-        False -> s
-      }
-    Error(_) -> ""
-  }
-}
-
-fn drop_trailing_chars(s: String, char: String) -> String {
-  case string.pop_grapheme(string.reverse(s)) {
-    Ok(#(g, rev_rest)) ->
-      case g == char {
-        True -> string.reverse(rev_rest) |> drop_trailing_chars(char)
-        False -> s
-      }
-    Error(_) -> ""
   }
 }
 
@@ -184,14 +153,15 @@ fn drop_trailing_chars(s: String, char: String) -> String {
 // ============================================================================
 
 fn process_parts(parts: List(String)) -> List(String) {
-  list.index_map(parts, fn(part, i) {
-    let len = list.length(parts)
+  let len = list.length(parts)
+  parts
+  |> list.index_map(fn(part, i) {
     let no_leading = case i > 0 {
-      True -> trim_leading_slashes(part)
+      True -> drop_leading_slashes(part)
       False -> part
     }
     case i < len - 1 {
-      True -> trim_trailing_slashes(no_leading)
+      True -> drop_trailing_slashes(no_leading)
       False -> collapse_trailing_slashes(no_leading)
     }
   })
@@ -201,18 +171,15 @@ fn process_parts(parts: List(String)) -> List(String) {
 fn join_parts(parts: List(String)) -> String {
   case parts {
     [] -> ""
-    [one] -> one
-    [first, second, ..rest] -> {
-      let acc = join_two_parts(first, second)
-      list.fold(rest, acc, fn(acc, part) { join_two_parts(acc, part) })
-    }
+    // Use list.fold instead of manually recreating the recursive loop
+    [first, ..rest] -> list.fold(rest, first, join_two_parts)
   }
 }
 
 fn join_two_parts(prev: String, part: String) -> String {
-  case string.ends_with(prev, "?"), string.ends_with(prev, "#") {
-    True, _ | _, True -> prev <> part
-    _, _ -> prev <> "/" <> part
+  case string.ends_with(prev, "?") || string.ends_with(prev, "#") {
+    True -> prev <> part
+    False -> prev <> "/" <> part
   }
 }
 
@@ -221,43 +188,37 @@ fn join_two_parts(prev: String, part: String) -> String {
 // ============================================================================
 
 fn normalize_query(s: String) -> String {
-  let no_slash_before_special = string.replace(in: s, each: "/?", with: "?")
-  let no_slash_before_hash =
-    string.replace(in: no_slash_before_special, each: "/#", with: "#")
-  let no_slash_before_amp =
-    string.replace(in: no_slash_before_hash, each: "/&", with: "&")
-  normalize_query_params(no_slash_before_amp)
+  s
+  |> string.replace("/?", "?")
+  |> string.replace("/#", "#")
+  |> string.replace("/&", "&")
+  |> normalize_query_params
 }
 
 fn normalize_query_params(s: String) -> String {
   case string.split_once(s, on: "#") {
     Ok(#(before_hash, after_hash)) -> {
-      let hash_suffix = case string.is_empty(after_hash) {
-        True -> ""
-        False -> "#" <> after_hash
+      let hash = case after_hash {
+        "" -> ""
+        _ -> "#" <> after_hash
       }
-      let parts = split_query_parts(before_hash)
-      case parts {
-        [] -> s
-        [path] -> path <> hash_suffix
-        [path, ..params] -> {
-          path <> "?" <> string.join(params, with: "&") <> hash_suffix
-        }
-      }
+      build_query(before_hash) <> hash
     }
-    Error(_) -> {
-      let parts = split_query_parts(s)
-      case parts {
-        [] -> s
-        [path] -> path
-        [path, ..params] -> path <> "?" <> string.join(params, with: "&")
-      }
-    }
+    Error(_) -> build_query(s)
+  }
+}
+
+fn build_query(s: String) -> String {
+  case split_query_parts(s) {
+    [] -> s
+    [path] -> path
+    [path, ..params] -> path <> "?" <> string.join(params, "&")
   }
 }
 
 fn split_query_parts(s: String) -> List(String) {
-  string.replace(in: s, each: "?", with: "&")
-  |> string.split(on: "&")
+  s
+  |> string.replace("?", "&")
+  |> string.split("&")
   |> list.filter(fn(x) { !string.is_empty(x) })
 }
