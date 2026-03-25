@@ -1,5 +1,5 @@
 name = "url_join"
-version = "1.0.0"
+version = "1.0.1"
 
 description = "Join URL path segments and normalize the result, similar to npm's url-join."
 licences = ["Apache-2.0"]
